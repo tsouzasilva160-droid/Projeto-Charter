@@ -81,3 +81,150 @@ def remover_duplicados():
             novos.append(livro)
     biblioteca[:] = novos
     salvar_dados()
+# ============================================================
+#   SEÇÃO 3 — THIAGO
+#   Lógica principal: cadastro, empréstimo, devolução, exclusão,
+#   marcar perdido, listar perdidos
+# ============================================================
+
+
+# --- CADASTRAR ---
+def cadastrar_livro(titulo, autor, msgbox, tree):
+    if not titulo.strip() or not autor.strip():
+        msgbox.config(text="Preencha todos os campos!", bootstyle="danger")
+        return
+
+    data = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    biblioteca.append({
+        "titulo": titulo.strip(),
+        "autor": autor.strip(),
+        "emprestado": False,
+        "quem": None,
+        "data_cadastro": data,
+        "data_emprestimo": None,
+        "data_devolucao": None,
+        "perdido": False,
+        "quem_perdeu": None,
+        "data_perda": None
+    })
+
+    salvar_dados()
+    listar_livros(tree)
+    registrar_log(f"Livro cadastrado: {titulo} ({autor})")
+
+    msgbox.config(text=f"Livro '{titulo}' cadastrado!", bootstyle="success")
+
+
+# --- EMPRESTAR ---
+def emprestar_livro(titulo, nome, msgbox, tree):
+    if not titulo.strip() or not nome.strip():
+        msgbox.config(text="Informe título e nome de quem pega.", bootstyle="danger")
+        return
+
+    for livro in biblioteca:
+        if livro["titulo"].lower() == titulo.lower() and not livro["emprestado"] and not livro["perdido"]:
+            livro["emprestado"] = True
+            livro["quem"] = nome.strip()
+            livro["data_emprestimo"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            livro["data_devolucao"] = None
+
+            salvar_dados()
+            listar_livros(tree)
+            registrar_log(f"Livro emprestado: {titulo} → {nome}")
+
+            msgbox.config(text=f"'{titulo}' emprestado para {nome}.", bootstyle="success")
+            return
+
+    msgbox.config(text="Livro não encontrado, emprestado ou perdido.", bootstyle="warning")
+
+
+# --- DEVOLVER ---
+def devolver_livro(titulo, msgbox, tree):
+    if not titulo.strip():
+        msgbox.config(text="Informe o título para devolução.", bootstyle="danger")
+        return
+
+    for livro in biblioteca:
+        if livro["titulo"].lower() == titulo.lower() and livro["emprestado"]:
+            livro["emprestado"] = False
+            livro["data_devolucao"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            livro["quem"] = None
+
+            salvar_dados()
+            listar_livros(tree)
+            registrar_log(f"Livro devolvido: {titulo}")
+
+            msgbox.config(text=f"Livro '{titulo}' devolvido!", bootstyle="success")
+            return
+
+    msgbox.config(text="Livro não encontrado ou não emprestado.", bootstyle="warning")
+
+
+# --- EXCLUIR ---
+def deletar_livro(titulo, msgbox, tree):
+    if not titulo.strip():
+        msgbox.config(text="Informe o título para exclusão.", bootstyle="danger")
+        return
+
+    for livro in biblioteca:
+        if livro["titulo"].lower() == titulo.lower():
+            resp = messagebox.askyesno("Excluir Livro", f"Tem certeza que deseja excluir '{titulo}'?")
+            if resp:
+                biblioteca.remove(livro)
+                salvar_dados()
+                listar_livros(tree)
+                registrar_log(f"Livro excluído: {titulo}")
+
+                msgbox.config(text=f"Livro '{titulo}' removido.", bootstyle="success")
+            return
+
+    msgbox.config(text="Livro não encontrado.", bootstyle="warning")
+
+
+# --- MARCAR PERDIDO ---
+def registrar_livro_perdido(titulo, nome, msgbox, tree):
+    if not titulo.strip() or not nome.strip():
+        msgbox.config(text="Informe título e nome de quem perdeu.", bootstyle="danger")
+        return
+
+    for livro in biblioteca:
+        if livro["titulo"].lower() == titulo.lower() and not livro["perdido"]:
+            livro["perdido"] = True
+            livro["quem_perdeu"] = nome.strip()
+            livro["data_perda"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+            salvar_dados()
+            listar_livros(tree)
+            registrar_log(f"Livro perdido: {titulo} → {nome}")
+
+            msgbox.config(text=f"Livro '{titulo}' perdido por {nome}.", bootstyle="danger")
+            return
+
+    msgbox.config(text="Livro não encontrado ou já marcado como perdido.", bootstyle="warning")
+
+
+# --- LISTAR PERDIDOS ---
+def ver_livros_perdidos(tree, msgbox):
+    for item in tree.get_children():
+        tree.delete(item)
+
+    perdidos = [livro for livro in biblioteca if livro.get("perdido")]
+
+    if not perdidos:
+        msgbox.config(text="Nenhum livro perdido.", bootstyle="info")
+        return
+
+    for livro in perdidos:
+        status, icone = obter_status(livro)
+        tree.insert("", "end", values=(
+            icone,
+            livro["titulo"],
+            livro["autor"],
+            status,
+            livro.get("data_cadastro", "-"),
+            livro.get("data_emprestimo", "-") or "-",
+            livro.get("data_devolucao", "-") or "-",
+            livro.get("data_perda", "-") or "-"
+        ))
+
+    msgbox.config(text=f"{len(perdidos)} livro(s) perdido(s).", bootstyle="warning")
